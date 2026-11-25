@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bob Equidistant Point</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel-2: #1c2230; --border: #2a3140;
+    --text: #e6edf3; --muted: #8b949e;
+    --red: #f85149; --yellow: #e3b341; --green: #3fb950; --blue: #58a6ff; --gray: #6e7681;
+    --b1: #22d3ee; --b2: #f472b6; --cut: #ffa500;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
+  body { padding: 20px; }
+  @media (max-width: 600px) { body { padding: 16px; } }
+
+  header { display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+  header h1 { font-size: 20px; margin: 0; font-weight: 600; }
+  header .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .conn { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .dot.live { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .dot.dead { background: var(--red); }
+
+  .banner { display: none; margin-bottom: 14px; padding: 10px 14px; border-radius: 10px;
+    font-weight: 600; font-size: 14px; }
+  .banner.dry { display: block; background: rgba(88,166,255,.12); border: 1px solid var(--blue); color: var(--blue); }
+  .banner.real { display: block; background: rgba(248,81,73,.10); border: 1px solid var(--red); color: var(--red); }
+
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 18px; }
+  @media (max-width: 1060px) { .grid { grid-template-columns: 1fr; } }
+  .stack { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .card h2 { margin: 0 0 12px; font-size: 12px; text-transform: uppercase;
+    letter-spacing: 1.2px; color: var(--muted); font-weight: 600; }
+
+  /* video */
+  .video-wrap { position: relative; background: #000; border-radius: 10px; overflow: hidden;
+    aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; }
+  .video-wrap img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .video-wrap .placeholder { position: absolute; color: var(--muted); font-size: 14px; }
+  .rec-badge { position: absolute; top: 12px; right: 12px; display: none; align-items: center; gap: 8px;
+    background: rgba(0,0,0,.65); color: #fff; padding: 6px 12px; border-radius: 999px;
+    font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .rec-badge.on { display: flex; }
+  .rec-badge .rdot { width: 11px; height: 11px; border-radius: 50%; background: var(--red);
+    animation: blink 1s steps(2, start) infinite; }
+  @keyframes blink { to { visibility: hidden; } }
+  .pair-badge { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+    padding: 6px 14px; border-radius: 8px; font-weight: 800; font-size: 14px; letter-spacing: .4px;
+    background: rgba(0,0,0,.65); color: var(--muted); white-space: nowrap; }
+  .pair-badge.ok { background: var(--green); color: #0d1117; }
+  .pair-badge.bad { background: var(--yellow); color: #0d1117; }
+
+  .warns { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; min-height: 8px; }
+  .warn-row { padding: 8px 10px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    background: rgba(227,179,65,.12); border: 1px solid var(--yellow); color: var(--yellow); }
+  .warn-row.red { background: rgba(248,81,73,.12); border-color: var(--red); color: var(--red); }
+
+  /* bottle cards */
+  .bottles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 600px) { .bottles { grid-template-columns: 1fr; } }
+  .bottle { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; border-top: 3px solid var(--gray); }
+  .bottle.b1 { border-top-color: var(--b1); } .bottle.b2 { border-top-color: var(--b2); }
+  .bottle.cut { border-top-color: var(--cut); }
+  .bottle .name { font-weight: 800; font-size: 15px; display: flex; justify-content: space-between; }
+  .bottle .name span:last-child { color: var(--muted); font-weight: 600; font-size: 12px; }
+  .bottle .big { font-size: 28px; font-weight: 700; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .bottle .big .unit { font-size: 13px; color: var(--muted); font-weight: 500; margin-left: 3px; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 12px; margin-top: 8px;
+    font-variant-numeric: tabular-nums; }
+  .kv span:nth-child(odd) { color: var(--muted); }
+  .kv span:nth-child(even) { text-align: right; }
+
+  /* map */
+  .map-wrap { position: relative; }
+  canvas#map { width: 100%; display: block; background: var(--panel-2); border-radius: 10px;
+    border: 1px solid var(--border); }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px;
+    vertical-align: -1px; }
+
+  /* mission */
+  .controls { display: grid; grid-template-columns: 1fr 1.4fr; gap: 12px; }
+  button { border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
+    padding: 12px; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: background .15s, opacity .15s, transform .05s; font-family: inherit; }
+  button:active:not(:disabled) { transform: scale(.98); }
+  button:disabled { opacity: .4; cursor: default; }
+  .btn-start { background: rgba(63,185,80,.15); border-color: var(--green); color: var(--green);
+    font-size: 18px; font-weight: 800; padding: 18px; }
+  .btn-stop { background: var(--red); border-color: var(--red); color: #fff;
+    font-size: 26px; font-weight: 900; letter-spacing: 2px; padding: 18px;
+    box-shadow: 0 0 0 3px rgba(248,81,73,.25); }
+  .btn-stop:hover { background: #ff6a62; }
+
+  .mission { border-radius: 12px; padding: 18px 16px; text-align: center; font-weight: 800;
+    font-size: 26px; letter-spacing: 1px; color: #0d1117; background: var(--gray); transition: background .25s; }
+  .mission small { display: block; font-size: 13px; font-weight: 600; margin-top: 8px; opacity: .85;
+    letter-spacing: 0; min-height: 17px; }
+  .mission.IDLE { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+  .mission.SEARCH_PAIR, .mission.STOPPED { background: var(--red); color: #fff; }
+  .mission.CENTER_PAIR, .mission.MEASURE, .mission.RETURN, .mission.DRIVE { background: var(--yellow); }
+  .mission.DONE { background: var(--green); }
+  .phase { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: var(--panel-2);
+    border: 1px solid var(--border); font-size: 13px; font-variant-numeric: tabular-nums; min-height: 34px; }
+  .meta { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 12px;
+    margin-top: 10px; word-break: break-all; }
+
+  /* results */
+  .res-group { margin-bottom: 14px; }
+  .res-group:last-child { margin-bottom: 0; }
+  .res-title { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 6px;
+    display: flex; justify-content: space-between; }
+  .res-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .res-table td { padding: 4px 6px; border-bottom: 1px solid var(--border); }
+  .res-table td:first-child { color: var(--muted); }
+  .res-table td:not(:first-child) { text-align: right; }
+  .res-big { display: flex; gap: 10px; }
+  .res-big > div { flex: 1; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px; }
+  .res-big .label { color: var(--muted); font-size: 12px; }
+  .res-big .value { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .preview { padding: 10px; border-radius: 10px; border: 1px dashed var(--border); font-size: 13px;
+    font-variant-numeric: tabular-nums; color: var(--muted); }
+  .preview b { color: var(--text); }
+  .ok { color: var(--green); } .bad { color: var(--red); }
+
+  .rec-row { display: flex; gap: 10px; }
+  .rec-row button { flex: 1; }
+  .btn-rec::before { content: "\25CF  "; color: var(--red); }
+  .btn-recstop::before { content: "\25A0  "; }
+  .rec-info { color: var(--muted); font-size: 13px; margin-top: 10px; min-height: 18px; word-break: break-all; }
+  .rec-info b { color: var(--text); font-weight: 600; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 18px; text-align: center; }
+</style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Bob · Equidistant Point</h1>
+      <div class="sub">find both bottles → measure → drive along heading 0 → check d1 = d2</div>
+    </div>
+    <div class="conn"><span class="dot" id="connDot"></span><span id="connText">connecting…</span>
+      <span id="fps"></span><span id="mode"></span></div>
+  </header>
+  <div class="banner" id="banner"></div>
+
+  <div class="grid">
+    <div class="stack">
+      <section class="card">
+        <h2>Live camera</h2>
+        <div class="video-wrap">
+          <span class="placeholder" id="placeholder">waiting for video…</span>
+          <img id="video" alt="Bob live camera">
+          <div class="rec-badge" id="recBadge"><span class="rdot"></span>REC <span id="recTime">00:00</span></div>
+          <div class="pair-badge" id="pairBadge">—</div>
+        </div>
+        <div class="warns" id="warns"></div>
+      </section>
+
+      <section class="card">
+        <h2>Bottles (live)</h2>
+        <div class="bottles" id="bottles"></div>
+      </section>
+
+      <section class="card">
+        <h2>Top-down map</h2>
+        <div class="map-wrap"><canvas id="map"></canvas></div>
+        <div class="legend">
+          <span><i style="background:var(--text)"></i>Bob</span>
+          <span><i style="background:var(--b1)"></i>B1</span>
+          <span><i style="background:var(--b2)"></i>B2</span>
+          <span><i style="background:var(--green)"></i>target (s, 0)</span>
+          <span><i style="background:transparent;border:1px dashed var(--yellow)"></i>circles of radius r</span>
+          <span><i style="background:transparent;border:2px solid var(--muted)"></i>2nd measurement</span>
+        </div>
+      </section>
+    </div>
+
+    <div class="stack">
+      <section class="card">
+        <h2>Mission</h2>
+        <div class="controls">
+          <button class="btn-start" id="btnStart">START</button>
+          <button class="btn-stop" id="btnStop">STOP</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>State</h2>
+        <div class="mission IDLE" id="mission">IDLE<small>&nbsp;</small></div>
+        <div class="phase" id="phase">&nbsp;</div>
+        <div class="meta"><span id="stage">stage: —</span><span id="theta">θ = —</span></div>
+        <div class="meta"><span id="logName">log: —</span></div>
+      </section>
+
+      <section class="card">
+        <h2>Results</h2>
+        <div id="results"></div>
+      </section>
+
+      <section class="card">
+        <h2>Recording</h2>
+        <div class="rec-row">
+          <button class="btn-rec" id="btnRec">Start</button>
+          <button class="btn-recstop" id="btnRecStop" disabled>Stop</button>
+        </div>
+        <div class="rec-info" id="recInfo">Saved to the <b>recordings</b> folder as MP4.</div>
+      </section>
+    </div>
+  </div>
+
+  <footer>STOP stops the wheels immediately (Space bar too) · Ctrl+C in the terminal also stops and quits</footer>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const n = (v, d = 0) => (v === null || v === undefined) ? "—" : Number(v).toFixed(d);
+  const sgn = (v, d = 1) => (v === null || v === undefined) ? "—" : (v > 0 ? "+" : "") + Number(v).toFixed(d);
+  const fmt = s => { s = Math.floor(s); return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); };
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  // ---- video: MJPEG first, fall back to /frame.jpg polling after 2 s ----
+  const video = $("video");
+  let vmode = "stream", fallbackTimer = null;
+  const setMode = t => { $("mode").textContent = "· video: " + t; };
+  function startStream() {
+    vmode = "stream"; setMode("MJPEG");
+    video.src = "/stream?t=" + Date.now();
+    fallbackTimer = setTimeout(() => { if (video.naturalWidth === 0) startPolling(); }, 2000);
+  }
+  function startPolling() {
+    if (vmode === "poll") return;
+    clearTimeout(fallbackTimer); vmode = "poll"; setMode("JPEG polling");
+    video.removeAttribute("src"); nextFrame();
+  }
+  const nextFrame = () => { video.src = "/frame.jpg?t=" + Date.now(); };
+  video.onload = () => { $("placeholder").style.display = "none"; if (vmode === "poll") setTimeout(nextFrame, 100); };
+  video.onerror = () => { if (vmode === "stream") startPolling(); else setTimeout(nextFrame, 500); };
+  startStream();
+
+  // ---- bottle cards ----
+  function bottleCard(b, i) {
+    if (!b) return '<div class="bottle b' + (i + 1) + '"><div class="name"><span>B' + (i + 1) +
+      '</span><span>not seen</span></div><div class="big">—</div></div>';
+    const cls = "bottle b" + (i + 1) + (b.edge_cut ? " cut" : "");
+    const flag = b.edge_cut ? "EDGE CUT" : (b.top_cut ? "top cut → width" : "conf " + Math.round(b.conf * 100) + "%");
+    return '<div class="' + cls + '"><div class="name"><span>' + b.label + '</span><span>' + flag + '</span></div>' +
+      '<div class="big">' + n(b.d) + '<span class="unit">cm</span></div>' +
+      '<div class="kv">' +
+      '<span>angle β (+ right)</span><span>' + sgn(b.beta, 1) + '°</span>' +
+      '<span>angle φ (+ left)</span><span>' + sgn(b.phi, 1) + '°</span>' +
+      '<span>x, y</span><span>' + n(b.x) + ', ' + n(b.y) + ' cm</span>' +
+      '<span>box w × h</span><span>' + b.w + ' × ' + b.h + ' px</span>' +
+      '<span>offset</span><span>' + sgn(b.offset, 0) + ' px</span>' +
+      '<span>from</span><span>' + (b.method || "—") + '</span>' +
+      '</div></div>';
+  }
+
+  // ---- results panel ----
+  function row(label, ...vals) { return "<tr><td>" + label + "</td>" + vals.map(v => "<td>" + v + "</td>").join("") + "</tr>"; }
+  function measTable(m) {
+    const b = m.bottles || [];
+    return '<table class="res-table">' +
+      row("", "<b>B1</b>", "<b>B2</b>") +
+      row("d (cm)", n(b[0] && b[0].d, 1), n(b[1] && b[1].d, 1)) +
+      row("x (cm)", n(b[0] && b[0].x, 1), n(b[1] && b[1].x, 1)) +
+      row("y (cm)", n(b[0] && b[0].y, 1), n(b[1] && b[1].y, 1)) +
+      row("angle β (°)", sgn(b[0] && b[0].beta, 1), sgn(b[1] && b[1].beta, 1)) +
+      row("box h (px)", n(b[0] && b[0].h, 0), n(b[1] && b[1].h, 0)) +
+      row("d spread (cm)", n(b[0] && b[0].d_spread, 1), n(b[1] && b[1].d_spread, 1)) +
+      row("from", (b[0] && b[0].method) || "—", (b[1] && b[1].method) || "—") +
+      '<tr><td>good frames</td><td colspan="2">' + m.good + " / " + m.frames +
+      (m.overlap_frames ? ' · <span class="bad">' + m.overlap_frames + ' with overlap</span>' : "") + '</td></tr>' +
+      (m.center_note ? '<tr><td>centering</td><td colspan="2">' + m.center_note + '</td></tr>' : "") +
+      "</table>";
+  }
+  function renderResults(d) {
+    const r = d.results || {};
+    let h = "";
+    // live preview (only while there is no real measurement yet)
+    if (!r.m1) {
+      const p = d.preview;
+      h += '<div class="res-group"><div class="res-title"><span>Live preview (θ = ' + n(d.theta, 1) + '°, not a measurement)</span></div>';
+      if (!p) h += '<div class="preview">Need both bottles fully visible in one frame.</div>';
+      else h += '<div class="preview">s = <b>' + sgn(p.s, 1) + ' cm</b> · r = <b>' + n(p.r, 1) + ' cm</b> · ' +
+        (p.ok ? '<span class="ok">safe to drive</span>' : '<span class="bad">' + p.reason + '</span>') + '</div>';
+      h += '</div>';
+    }
+    if (r.m1) h += '<div class="res-group"><div class="res-title"><span>1 · Measurement at start</span><span>θ = ' +
+      sgn(r.m1.theta, 1) + '°</span></div>' + measTable(r.m1) + '</div>';
+    if (r.target) {
+      const t = r.target;
+      h += '<div class="res-group"><div class="res-title"><span>2 · Target point</span></div><table class="res-table">' +
+        row("s (cm)", sgn(t.s, 1)) + row("predicted r (cm)", n(t.r, 1)) +
+        row("safety checks", t.ok ? '<span class="ok">passed</span>' : '<span class="bad">' + t.reason + '</span>') +
+        '</table></div>';
+    }
+    if (r.m2) h += '<div class="res-group"><div class="res-title"><span>3 · Measurement at (s, 0)</span><span>θ = ' +
+      sgn(r.m2.theta, 1) + '°</span></div>' + measTable(r.m2) + '</div>';
+    if (r.final) {
+      const f = r.final;
+      h += '<div class="res-group"><div class="res-title"><span>4 · Result</span></div><div class="res-big">' +
+        '<div><div class="label">ratio d_max / d_min</div><div class="value">' + n(f.ratio, 3) + '</div></div>' +
+        '<div><div class="label">error</div><div class="value">' + n(f.error_pct, 1) + ' %</div></div></div>' +
+        '<table class="res-table" style="margin-top:8px">' + row("mean d − r (cm)", sgn(f.r_error_cm, 1)) + '</table></div>';
+    }
+    if (r.drift) h += '<div class="res-group"><div class="res-title"><span>5 · Consistency (bottle moved?)</span></div>' +
+      '<table class="res-table">' + row("drove (cm)", sgn(r.drove_cm, 1)) +
+      r.drift.map(x => row(x.label + " (1st) ↔ " + x.matched + " (2nd)",
+        '<span class="' + (x.drift > 10 ? "bad" : "ok") + '">' + n(x.drift, 1) + ' cm</span>')).join("") +
+      '</table></div>';
+    $("results").innerHTML = h;
+  }
+
+  // ---- top-down map: world x (heading 0) = UP, world y (left) = LEFT ----
+  const map = $("map");
+  function drawMap(d) {
+    const dpr = window.devicePixelRatio || 1;
+    const W = map.clientWidth, H = Math.round(W * 0.8);
+    if (map.width !== W * dpr || map.height !== H * dpr) { map.width = W * dpr; map.height = H * dpr; map.style.height = H + "px"; }
+    const ctx = map.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+
+    const res = d.results || {};
+    const cfg = d.config || {};
+    const robotX = d.robot_x || 0, theta = d.theta || 0;
+    // bottles to show: the first measurement if there is one, else the live view
+    const live = (d.bottles || []).filter(b => b.d != null).map(b => ({ x: b.x + robotX, y: b.y, label: b.label }));
+    const main = res.m1 ? res.m1.bottles.map(b => ({ x: b.x, y: b.y, label: b.label })) : live;
+    const second = res.m2 ? res.m2.bottles.map(b => ({ x: b.x_start, y: b.y, label: b.label })) : [];
+    const tgt = res.target || (d.preview && d.preview.s != null ? d.preview : null);
+    const r = tgt && tgt.r;
+
+    // fit everything (incl. circles) into the canvas
+    let xs = [-60, 60, robotX], ys = [-60, 60];
+    main.concat(second).forEach(p => { xs.push(p.x); ys.push(p.y);
+      if (r) { xs.push(p.x - r, p.x + r); ys.push(p.y - r, p.y + r); } });
+    if (tgt && tgt.s != null) xs.push(tgt.s);
+    const pad = 20;
+    let x0 = Math.min(...xs) - pad, x1 = Math.max(...xs) + pad, y0 = Math.min(...ys) - pad, y1 = Math.max(...ys) + pad;
+    const sc = Math.min(W / (y1 - y0), H / (x1 - x0));
+    const xc = (x0 + x1) / 2, yc = (y0 + y1) / 2;
+    const P = (x, y) => [W / 2 - (y - yc) * sc, H / 2 - (x - xc) * sc];
+
+    // grid every 50 cm
+    ctx.lineWidth = 1; ctx.strokeStyle = css("--border"); ctx.fillStyle = css("--muted"); ctx.font = "11px Segoe UI";
+    for (let g = Math.ceil(x0 / 50) * 50; g <= x1; g += 50) {
+      const [, py] = P(g, 0); ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(W, py); ctx.stroke();
+      ctx.fillText(g + " cm", 4, py - 3);
+    }
+    for (let g = Math.ceil(y0 / 50) * 50; g <= y1; g += 50) {
+      const [px] = P(0, g); ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
+    }
+    // heading-0 axis + allowed travel
+    const maxT = cfg.max_travel_cm || 150;
+    ctx.setLineDash([6, 5]); ctx.strokeStyle = css("--blue"); ctx.lineWidth = 1.5;
+    let [ax, ay] = P(x1, 0), [bx, by] = P(x0, 0);
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = css("--blue"); ctx.fillText("heading 0", ax + 5, ay + 12);
+    [-maxT, maxT].forEach(t => { const [px, py] = P(t, 0); ctx.fillRect(px - 6, py - 1, 12, 2); });
+
+    // driving path to s with the clearance band
+    if (tgt && tgt.s != null) {
+      const cl = cfg.clearance_cm || 20;
+      const [p1x, p1y] = P(Math.max(0, tgt.s), cl), [p2x, p2y] = P(Math.min(0, tgt.s), -cl);
+      ctx.fillStyle = tgt.ok ? "rgba(63,185,80,.12)" : "rgba(248,81,73,.15)";
+      ctx.fillRect(p1x, p1y, p2x - p1x, p2y - p1y);
+    }
+    // circles of radius r around each bottle (they meet at the target)
+    if (r) {
+      ctx.setLineDash([4, 4]); ctx.strokeStyle = css("--yellow"); ctx.lineWidth = 1;
+      main.forEach(p => { const [px, py] = P(p.x, p.y); ctx.beginPath(); ctx.arc(px, py, r * sc, 0, 2 * Math.PI); ctx.stroke(); });
+      ctx.setLineDash([]);
+    }
+    // target point
+    if (tgt && tgt.s != null) {
+      const [px, py] = P(tgt.s, 0);
+      ctx.fillStyle = tgt.ok ? css("--green") : css("--red");
+      ctx.beginPath(); ctx.moveTo(px, py - 8); ctx.lineTo(px + 8, py); ctx.lineTo(px, py + 8); ctx.lineTo(px - 8, py); ctx.fill();
+      ctx.fillText("s = " + sgn(tgt.s, 0), px + 11, py + 4);
+    }
+    // bottles
+    const colors = [css("--b1"), css("--b2")];
+    const rad = Math.max((cfg.bottle_r_cm || 2.75) * sc, 5);
+    main.forEach((p, i) => {
+      const [px, py] = P(p.x, p.y);
+      ctx.fillStyle = colors[i] || css("--muted");
+      ctx.beginPath(); ctx.arc(px, py, rad, 0, 2 * Math.PI); ctx.fill();
+      ctx.font = "bold 12px Segoe UI"; ctx.fillText(p.label, px + rad + 4, py + 4); ctx.font = "11px Segoe UI";
+    });
+    second.forEach(p => {
+      const [px, py] = P(p.x, p.y);
+      ctx.strokeStyle = css("--muted"); ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(px, py, rad + 3, 0, 2 * Math.PI); ctx.stroke();
+    });
+    // Bob: triangle at (robot_x, 0) pointing along theta, plus the camera view wedge
+    const [rx, ry] = P(robotX, 0);
+    const ang = -Math.PI / 2 - theta * Math.PI / 180;        // screen angle (up = heading 0, + = left)
+    const hfov = d.frame_w && cfg.focal_px ? Math.atan(d.frame_w / 2 / cfg.focal_px) : 0.58;
+    ctx.fillStyle = "rgba(139,148,158,.12)";
+    ctx.beginPath(); ctx.moveTo(rx, ry); ctx.arc(rx, ry, Math.min(W, H) * 0.35, ang - hfov, ang + hfov); ctx.closePath(); ctx.fill();
+    ctx.save(); ctx.translate(rx, ry); ctx.rotate(ang);
+    ctx.fillStyle = css("--text");
+    ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-9, 8); ctx.lineTo(-9, -8); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  function render(d) {
+    $("connDot").className = "dot live"; $("connText").textContent = "live";
+    $("fps").textContent = d.fps ? "· " + d.fps + " fps" : "";
+
+    const b = $("banner");
+    if (d.dry_run) { b.className = "banner dry"; b.textContent = "DRY-RUN — the wheels never move."; }
+    else { b.className = "banner real"; b.textContent = "REAL WHEELS — Bob may move after START. Keep the STOP button in reach."; }
+
+    const ms = d.mission || "IDLE";
+    $("mission").className = "mission " + ms;
+    $("mission").innerHTML = ms.replace("_", " ") + "<small>" + (d.message || "&nbsp;") + "</small>";
+    $("phase").textContent = d.phase ? "▸ " + d.phase : " ";
+    $("stage").textContent = "stage: " + (d.stage || "—") +
+      (d.stage === "full" && ms !== "IDLE" ? " · round " + (d.round || 1) + "/2" : "");
+    $("theta").textContent = "θ = " + sgn(d.theta, 1) + "° · x = " + n(d.robot_x, 0) + " cm";
+    $("logName").textContent = "log: logs/" + (d.log || "—");
+    const active = !["IDLE", "STOPPED", "DONE"].includes(ms);
+    $("btnStart").disabled = active;
+    $("btnStart").textContent = ms === "IDLE" ? "START" : "RESTART";
+
+    // pair badge + warnings
+    const pb = $("pairBadge"), nb = (d.bottles || []).length;
+    if (d.pair_full) { pb.className = "pair-badge ok"; pb.textContent = "BOTH BOTTLES OK · midpoint " + sgn(d.mid_offset, 0) + " px"; }
+    else { pb.className = "pair-badge bad"; pb.textContent = nb + " / 2 bottles usable"; }
+    $("warns").innerHTML = (d.warnings || []).map(w =>
+      '<div class="warn-row' + (/overlap|cut by/.test(w) ? " red" : "") + '">⚠ ' + w + '</div>').join("");
+
+    const bs = d.bottles || [];
+    $("bottles").innerHTML = bottleCard(bs[0], 0) + bottleCard(bs[1], 1);
+    renderResults(d);
+    drawMap(d);
+
+    $("recBadge").classList.toggle("on", d.recording);
+    $("recTime").textContent = fmt(d.elapsed || 0);
+    $("btnRec").disabled = d.recording; $("btnRecStop").disabled = !d.recording;
+    if (d.recording) $("recInfo").innerHTML = "Recording <b>" + d.file + "</b> · " + fmt(d.elapsed);
+    else if (d.last_saved) $("recInfo").innerHTML = "Saved <b>recordings/" + d.last_saved + "</b>";
+  }
+
+  async function poll() {
+    try { render(await (await fetch("/status", { cache: "no-store" })).json()); }
+    catch (e) { $("connDot").className = "dot dead"; $("connText").textContent = "disconnected"; }
+    setTimeout(poll, 250);
+  }
+  poll();
+
+  const post = path => fetch(path, { method: "POST" }).catch(() => {});
+  $("btnStart").onclick = () => post("/mission/start");
+  $("btnStop").onclick = () => post("/mission/stop");      // never disabled: always works
+  $("btnRec").onclick = () => { $("btnRec").disabled = true; post("/record/start"); };
+  $("btnRecStop").onclick = () => { $("btnRecStop").disabled = true; post("/record/stop"); };
+  document.addEventListener("keydown", e => { if (e.code === "Space") { e.preventDefault(); post("/mission/stop"); } });
+</script>
+</body>
+</html>

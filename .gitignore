@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+*.pt
+recordings/
+logs/
+focal.txt
+test_frame.jpg
+square_results.csv

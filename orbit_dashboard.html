@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bob Bottle Orbit</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel-2: #1c2230; --border: #2a3140;
+    --text: #e6edf3; --muted: #8b949e;
+    --red: #f85149; --yellow: #e3b341; --green: #3fb950; --blue: #58a6ff; --gray: #6e7681;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
+  body { padding: 20px; }
+
+  header { display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+  header h1 { font-size: 20px; margin: 0; font-weight: 600; }
+  header .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .conn { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .dot.live { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .dot.dead { background: var(--red); }
+
+  .banner { display: none; margin-bottom: 14px; padding: 10px 14px; border-radius: 10px;
+    font-weight: 600; font-size: 14px; }
+  .banner.dry { display: block; background: rgba(88,166,255,.12); border: 1px solid var(--blue); color: var(--blue); }
+  .banner.real { display: block; background: rgba(248,81,73,.10); border: 1px solid var(--red); color: var(--red); }
+
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; }
+  @media (max-width: 1020px) { .grid { grid-template-columns: 1fr; } }
+
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .card h2 { margin: 0 0 12px; font-size: 12px; text-transform: uppercase;
+    letter-spacing: 1.2px; color: var(--muted); font-weight: 600; }
+  .stack { display: flex; flex-direction: column; gap: 18px; }
+
+  /* video */
+  .video-wrap { position: relative; background: #000; border-radius: 10px; overflow: hidden;
+    aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; }
+  .video-wrap img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .video-wrap .placeholder { position: absolute; color: var(--muted); font-size: 14px; }
+  .rec-badge { position: absolute; top: 12px; left: 12px; display: none; align-items: center; gap: 8px;
+    background: rgba(0,0,0,.65); color: #fff; padding: 6px 12px; border-radius: 999px;
+    font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .rec-badge.on { display: flex; }
+  .rec-badge .rdot { width: 11px; height: 11px; border-radius: 50%; background: var(--red);
+    animation: blink 1s steps(2, start) infinite; }
+  @keyframes blink { to { visibility: hidden; } }
+  .topcut { position: absolute; top: 12px; right: 12px; display: none; background: var(--red);
+    color: #fff; font-weight: 800; padding: 6px 12px; border-radius: 8px; font-size: 14px; }
+  .topcut.on { display: block; }
+
+  .track { position: relative; height: 26px; margin-top: 14px; background: var(--panel-2);
+    border-radius: 8px; border: 1px solid var(--border); }
+  .track .zone { position: absolute; top: 0; bottom: 0; background: rgba(63,185,80,.18);
+    border-left: 1px dashed var(--green); border-right: 1px dashed var(--green); }
+  .track .mid { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--muted); }
+  .track .marker { position: absolute; top: 3px; bottom: 3px; width: 6px; margin-left: -3px;
+    border-radius: 3px; background: var(--muted); transition: left .15s ease; display: none; }
+  .track-labels { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; margin-top: 6px; }
+
+  /* mission controls */
+  .controls { display: grid; grid-template-columns: 1fr 1.4fr; gap: 12px; }
+  button { border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
+    padding: 12px; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: background .15s, opacity .15s, transform .05s; font-family: inherit; }
+  button:active:not(:disabled) { transform: scale(.98); }
+  button:disabled { opacity: .4; cursor: default; }
+  .btn-start { background: rgba(63,185,80,.15); border-color: var(--green); color: var(--green);
+    font-size: 18px; font-weight: 800; padding: 18px; }
+  .btn-start:hover:not(:disabled) { background: rgba(63,185,80,.25); }
+  .btn-stop { background: var(--red); border-color: var(--red); color: #fff;
+    font-size: 26px; font-weight: 900; letter-spacing: 2px; padding: 18px;
+    box-shadow: 0 0 0 3px rgba(248,81,73,.25); }
+  .btn-stop:hover { background: #ff6a62; }
+
+  /* mission badge */
+  .mission { border-radius: 12px; padding: 20px 16px; text-align: center; font-weight: 800;
+    font-size: 30px; letter-spacing: 1px; color: #0d1117; background: var(--gray); transition: background .25s; }
+  .mission small { display: block; font-size: 13px; font-weight: 600; margin-top: 8px; opacity: .85;
+    letter-spacing: 0; min-height: 17px; }
+  .mission.SEARCH, .mission.STOPPED { background: var(--red); color: #fff; }
+  .mission.ALIGN, .mission.APPROACH { background: var(--yellow); }
+  .mission.ORBIT, .mission.DONE { background: var(--green); }
+  .mission.IDLE { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+  .meta { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 10px;
+    word-break: break-all; }
+  .phase { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: var(--panel-2);
+    border: 1px solid var(--border); font-size: 13px; font-variant-numeric: tabular-nums; min-height: 34px; }
+
+  /* metrics */
+  .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .metric { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+  .metric.wide { grid-column: 1 / -1; }
+  .metric .label { color: var(--muted); font-size: 12px; }
+  .metric .value { font-size: 24px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .metric.big .value { font-size: 34px; }
+  .metric .unit { font-size: 13px; color: var(--muted); font-weight: 500; margin-left: 3px; }
+  .metric .extra { font-size: 12px; color: var(--muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .ok { color: var(--green); } .warn { color: var(--yellow); }
+
+  /* speed bars */
+  .speed { display: grid; grid-template-columns: 70px 1fr 70px; align-items: center; gap: 10px;
+    margin-bottom: 10px; font-size: 13px; }
+  .speed .name { color: var(--muted); }
+  .speed .val { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .bar { position: relative; height: 10px; background: var(--panel-2); border-radius: 5px; border: 1px solid var(--border); }
+  .bar::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--muted); }
+  .bar .fill { position: absolute; top: 0; bottom: 0; background: var(--blue); border-radius: 5px; transition: all .15s; }
+
+  /* arc card */
+  #arcCard { display: none; }
+  #arcCard.on { display: block; }
+  .label { color: var(--muted); font-size: 12px; }
+  .arc-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+  .arc-big { font-size: 36px; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .arc-big .unit { font-size: 18px; color: var(--muted); margin-left: 2px; }
+  .arc-target { font-size: 18px; color: var(--muted); font-weight: 600; margin-left: 10px; }
+  .arc-wp { text-align: right; }
+  .arc-wpval { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .gauge { position: relative; height: 16px; margin-top: 14px; background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 8px; }
+  .g-zero { position: absolute; left: 50%; top: -4px; bottom: -4px; width: 1px; background: var(--muted); }
+  .g-fill { position: absolute; top: 3px; bottom: 3px; background: rgba(63,185,80,.45); border-radius: 4px; }
+  .g-now { position: absolute; top: -5px; bottom: -5px; width: 4px; margin-left: -2px; background: var(--text);
+    border-radius: 2px; transition: left .15s; }
+  .g-wp { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--blue); }
+  .g-wp.done { background: var(--green); }
+  .g-wp.cur { background: var(--yellow); width: 3px; }
+  .g-scale { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; margin-top: 6px; }
+  .chips { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .chip { padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel-2);
+    font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .chip.done { border-color: var(--green); color: var(--green); }
+  .chip.done::before { content: "✓ "; }
+  .chip.cur { border-color: var(--yellow); color: #0d1117; background: var(--yellow); }
+  .paused { display: none; margin-top: 12px; padding: 10px; border-radius: 10px; text-align: center;
+    font-weight: 800; letter-spacing: .5px; background: var(--yellow); color: #0d1117;
+    animation: pulse 1s ease-in-out infinite alternate; }
+  .paused.on { display: block; }
+  .paused.lost { background: var(--red); color: #fff; }
+  @keyframes pulse { from { opacity: 1; } to { opacity: .65; } }
+  .arc-src { color: var(--muted); font-size: 12px; margin-top: 10px; }
+  .video-paused { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); display: none;
+    background: var(--yellow); color: #0d1117; font-weight: 800; padding: 6px 14px; border-radius: 8px;
+    font-size: 14px; letter-spacing: .5px; }
+  .video-paused.on { display: block; }
+  .video-paused.lost { background: var(--red); color: #fff; }
+
+  .rec-row { display: flex; gap: 10px; }
+  .rec-row button { flex: 1; }
+  .btn-rec::before { content: "\25CF  "; color: var(--red); }
+  .btn-recstop::before { content: "\25A0  "; }
+  .rec-info { color: var(--muted); font-size: 13px; margin-top: 10px; min-height: 18px; word-break: break-all; }
+  .rec-info b { color: var(--text); font-weight: 600; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 18px; text-align: center; }
+</style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Bob · Bottle Orbit</h1>
+      <div class="sub">find → align → approach to 60 cm → orbit · YOLOv8s</div>
+    </div>
+    <div class="conn"><span class="dot" id="connDot"></span><span id="connText">connecting…</span><span id="mode"></span></div>
+  </header>
+  <div class="banner" id="banner"></div>
+
+  <div class="grid">
+    <div class="stack">
+      <section class="card">
+        <h2>Live camera</h2>
+        <div class="video-wrap">
+          <span class="placeholder" id="placeholder">waiting for video…</span>
+          <img id="video" alt="Bob live camera">
+          <div class="rec-badge" id="recBadge"><span class="rdot"></span>REC <span id="recTime">00:00</span></div>
+          <div class="topcut" id="topCut">TOP CUT</div>
+          <div class="video-paused" id="videoPaused">PAUSED — re-centering</div>
+        </div>
+        <div class="track"><div class="zone" id="zone"></div><div class="mid"></div><div class="marker" id="marker"></div></div>
+        <div class="track-labels"><span>left</span><span>center ±<span id="tolLabel">40</span> px</span><span>right</span></div>
+      </section>
+
+      <section class="card" id="arcCard">
+        <h2>Arc around the bottle</h2>
+        <div class="arc-head">
+          <div><div class="label">Angle travelled</div>
+            <div class="arc-big"><span id="arcAngle">—</span><span class="unit">°</span>
+              <span class="arc-target">→ <span id="arcTarget">—</span>°</span></div></div>
+          <div class="arc-wp"><div class="label">Waypoint</div><div class="arc-wpval" id="arcWp">—</div></div>
+        </div>
+        <div class="gauge" id="gauge">
+          <div class="g-zero"></div>
+          <div class="g-fill" id="gFill"></div>
+          <div class="g-now" id="gNow"></div>
+        </div>
+        <div class="g-scale"><span>-60° left</span><span>start 0°</span><span>right +60°</span></div>
+        <div class="chips" id="chips"></div>
+        <div class="paused" id="paused">PAUSED — re-centering</div>
+        <div class="arc-src" id="arcSrc">&nbsp;</div>
+      </section>
+
+      <section class="card">
+        <h2>Speeds being sent</h2>
+        <div class="speed"><span class="name">x fwd</span><div class="bar"><div class="fill" id="barX"></div></div><span class="val" id="vx">0 cm/s</span></div>
+        <div class="speed"><span class="name">y left</span><div class="bar"><div class="fill" id="barY"></div></div><span class="val" id="vy">0 cm/s</span></div>
+        <div class="speed"><span class="name">z turn L</span><div class="bar"><div class="fill" id="barZ"></div></div><span class="val" id="vz">0 °/s</span></div>
+      </section>
+    </div>
+
+    <div class="stack">
+      <section class="card">
+        <h2>Mission</h2>
+        <div class="controls">
+          <button class="btn-start" id="btnStart">START</button>
+          <button class="btn-stop" id="btnStop">STOP</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>State</h2>
+        <div class="mission IDLE" id="mission">IDLE<small>Press START to begin</small></div>
+        <div class="phase" id="phase">&nbsp;</div>
+        <div class="meta"><span id="stage">stage: —</span><span id="turns"></span></div>
+        <div class="meta"><span id="logName">log: —</span></div>
+      </section>
+
+      <section class="card">
+        <h2>Measurements</h2>
+        <div class="metrics">
+          <div class="metric wide big"><div class="label">Distance to bottle (median of 5)</div>
+            <div class="value"><span id="dist">—</span><span class="unit">cm</span></div>
+            <div class="extra" id="distExtra">&nbsp;</div></div>
+          <div class="metric"><div class="label">Center X</div>
+            <div class="value"><span id="cx">—</span><span class="unit">px</span></div>
+            <div class="extra" id="offset">&nbsp;</div></div>
+          <div class="metric"><div class="label">FPS</div>
+            <div class="value" id="fps">—</div><div class="extra">detections / s</div></div>
+          <div class="metric"><div class="label">Width</div>
+            <div class="value"><span id="w">—</span><span class="unit">px</span></div></div>
+          <div class="metric"><div class="label">Height</div>
+            <div class="value"><span id="h">—</span><span class="unit">px</span></div></div>
+          <div class="metric"><div class="label">Confidence</div>
+            <div class="value" id="conf">—</div>
+            <div class="extra">threshold <span id="confThr">—</span></div></div>
+          <div class="metric"><div class="label">YOLO imgsz</div>
+            <div class="value"><span id="imgsz">—</span><span class="unit">px</span></div>
+            <div class="extra">input size</div></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Recording</h2>
+        <div class="rec-row">
+          <button class="btn-rec" id="btnRec">Start</button>
+          <button class="btn-recstop" id="btnRecStop" disabled>Stop</button>
+        </div>
+        <div class="rec-info" id="recInfo">Saved to the <b>recordings</b> folder as MP4.</div>
+      </section>
+    </div>
+  </div>
+
+  <footer>STOP stops the wheels immediately · Ctrl+C in the terminal also stops and quits ·
+    LED: red = search/stopped, yellow = align/approach, green = orbit</footer>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const show = v => (v === null || v === undefined) ? "—" : v;
+  const fmt = s => { s = Math.floor(s); return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); };
+
+  // ---- video: MJPEG first, fall back to /frame.jpg polling after 2 s ----
+  const video = $("video");
+  let vmode = "stream", fallbackTimer = null;
+  const setMode = t => { $("mode").textContent = "· video: " + t; };
+  function startStream() {
+    vmode = "stream"; setMode("MJPEG");
+    video.src = "/stream?t=" + Date.now();
+    fallbackTimer = setTimeout(() => { if (video.naturalWidth === 0) startPolling(); }, 2000);
+  }
+  function startPolling() {
+    if (vmode === "poll") return;
+    clearTimeout(fallbackTimer); vmode = "poll"; setMode("JPEG polling");
+    video.removeAttribute("src"); nextFrame();
+  }
+  const nextFrame = () => { video.src = "/frame.jpg?t=" + Date.now(); };
+  video.onload = () => { $("placeholder").style.display = "none"; if (vmode === "poll") setTimeout(nextFrame, 100); };
+  video.onerror = () => { if (vmode === "stream") startPolling(); else setTimeout(nextFrame, 500); };
+  startStream();
+
+  // ---- speed bars: centered at 0, full width = limit ----
+  function bar(id, valId, v, limit, unit) {
+    const pct = Math.min(Math.abs(v) / limit, 1) * 50;
+    const el = $(id);
+    el.style.left = (v >= 0 ? 50 : 50 - pct) + "%";
+    el.style.width = pct + "%";
+    $(valId).textContent = v + " " + unit;
+  }
+
+  function render(d) {
+    $("connDot").className = "dot live"; $("connText").textContent = "live";
+
+    // banner
+    const b = $("banner");
+    if (d.dry_run) { b.className = "banner dry"; b.textContent = "DRY-RUN — speeds are only printed, the wheels never move."; }
+    else { b.className = "banner real"; b.textContent = "REAL WHEELS — Bob moves after START. Keep the STOP button in reach."; }
+
+    // mission
+    const ms = d.mission || "IDLE";
+    $("mission").className = "mission " + ms;
+    $("mission").innerHTML = ms + "<small>" + (d.message || "&nbsp;") + "</small>";
+    $("stage").textContent = "stage: " + (d.stage || "—");
+    const bits = [];
+    if (d.search_turns) bits.push("search turns: " + d.search_turns);
+    if (d.align_tries) bits.push("align try " + d.align_tries + "/6");
+    $("turns").textContent = bits.join(" · ");
+    $("phase").textContent = d.phase ? "▸ " + d.phase : " ";
+    $("logName").textContent = "log: logs/" + (d.log || "—");
+    const active = !["IDLE", "STOPPED", "DONE"].includes(ms);
+    $("btnStart").disabled = active;
+    $("btnStart").textContent = ms === "IDLE" ? "START" : "RESTART";
+
+    // distance
+    $("dist").textContent = d.distance == null ? "—" : d.distance.toFixed(0);
+    if (d.distance != null) {
+      const err = d.distance - d.target;
+      const ok = Math.abs(err) <= d.dist_tol;
+      $("distExtra").innerHTML = '<span class="' + (ok ? "ok" : "warn") + '">' +
+        (ok ? "on target" : (err > 0 ? "+" : "") + err.toFixed(0) + " cm vs " + d.target) + "</span>" +
+        " · from box " + (d.dist_method || "?");
+    } else $("distExtra").textContent = "need 3 detections";
+
+    // box numbers
+    $("cx").textContent = show(d.cx); $("w").textContent = show(d.w); $("h").textContent = show(d.h);
+    $("fps").textContent = d.fps == null ? "—" : d.fps.toFixed(1);
+    $("conf").textContent = d.conf == null ? "—" : Math.round(d.conf * 100) + "%";
+    $("confThr").textContent = d.conf_threshold == null ? "—" : Math.round(d.conf_threshold * 100) + "%";
+    $("imgsz").textContent = show(d.imgsz);
+    $("offset").textContent = d.offset == null ? " "
+      : (d.offset === 0 ? "on center" : Math.abs(d.offset) + " px " + (d.offset > 0 ? "right" : "left"));
+    $("topCut").classList.toggle("on", !!d.top_cut);
+
+    // center track
+    if (d.frame_w) {
+      const tolPct = d.tolerance / d.frame_w * 100;
+      $("zone").style.left = (50 - tolPct) + "%"; $("zone").style.width = (2 * tolPct) + "%";
+      $("tolLabel").textContent = d.tolerance;
+    }
+    const mk = $("marker");
+    if (d.cx != null && d.frame_w) { mk.style.display = "block"; mk.style.left = (d.cx / d.frame_w * 100) + "%"; }
+    else mk.style.display = "none";
+
+    // arc
+    renderArc(d.orbit);
+
+    // speeds
+    const c = d.cmd || { x: 0, y: 0, z: 0 };
+    bar("barX", "vx", c.x, 10, "cm/s"); bar("barY", "vy", c.y, 10, "cm/s"); bar("barZ", "vz", c.z, 30, "°/s");
+
+    // recording
+    $("recBadge").classList.toggle("on", d.recording);
+    $("recTime").textContent = fmt(d.elapsed || 0);
+    $("btnRec").disabled = d.recording; $("btnRecStop").disabled = !d.recording;
+    if (d.recording) $("recInfo").innerHTML = "Recording <b>" + d.file + "</b> · " + fmt(d.elapsed);
+    else if (d.last_saved) $("recInfo").innerHTML = "Saved <b>recordings/" + d.last_saved + "</b>";
+  }
+
+  // ---- arc card: gauge from -60 to +60 deg, waypoint chips, PAUSED indicator ----
+  const G_RANGE = 60;
+  const gPct = a => 50 + Math.max(-G_RANGE, Math.min(G_RANGE, a)) / G_RANGE * 50;
+  let wpKey = "";
+  function renderArc(o) {
+    $("arcCard").classList.toggle("on", !!o);
+    const vp = $("videoPaused");
+    if (!o) { vp.className = "video-paused"; return; }
+    const n = o.waypoints.length, done = o.index >= n;
+    $("arcAngle").textContent = (o.angle > 0 ? "+" : "") + o.angle.toFixed(1);
+    $("arcTarget").textContent = o.target == null ? "done" : (o.target > 0 ? "+" : "") + o.target;
+    $("arcWp").textContent = done ? n + "/" + n + " ✓" : (o.index + 1) + " / " + n;
+
+    // gauge: green fill from 0 to the current angle, white marker = Bob
+    const now = gPct(o.angle), zero = 50;
+    $("gFill").style.left = Math.min(now, zero) + "%";
+    $("gFill").style.width = Math.abs(now - zero) + "%";
+    $("gNow").style.left = now + "%";
+    // waypoint ticks + chips (rebuilt only when the index changes)
+    const key = o.index + "|" + o.waypoints.join(",");
+    if (key !== wpKey) {
+      wpKey = key;
+      document.querySelectorAll(".g-wp").forEach(e => e.remove());
+      const chips = $("chips"); chips.innerHTML = "";
+      o.waypoints.forEach((w, i) => {
+        const cls = i < o.index ? "done" : (i === o.index ? "cur" : "");
+        const t = document.createElement("div");
+        t.className = "g-wp " + cls; t.style.left = gPct(w) + "%"; $("gauge").appendChild(t);
+        const c = document.createElement("span");
+        c.className = "chip " + cls; c.textContent = (i + 1) + ": " + (w > 0 ? "+" : "") + w + "°";
+        chips.appendChild(c);
+      });
+    }
+    // PAUSED indicator (rule: > 60 px off -> stop strafing, re-center in place)
+    const p = $("paused");
+    const text = o.recentering ? "PAUSED — re-centering" : (o.lost ? "STOPPED — bottle not seen, looking" : "");
+    p.textContent = text; vp.textContent = text;
+    p.className = "paused" + (text ? " on" : "") + (o.lost ? " lost" : "");
+    vp.className = "video-paused" + (text ? " on" : "") + (o.lost ? " lost" : "");
+    $("arcSrc").textContent = "heading from: " + (o.source === "imu" ? "IMU yaw (verified on turns)" : "turn commands")
+      + (o.imu_bad ? " — IMU failed turn checks, see log" : (!o.imu_verified ? " — IMU not verified yet" : ""));
+  }
+
+  async function poll() {
+    try { render(await (await fetch("/status", { cache: "no-store" })).json()); }
+    catch (e) { $("connDot").className = "dot dead"; $("connText").textContent = "disconnected"; }
+    setTimeout(poll, 250);
+  }
+  poll();
+
+  const post = path => fetch(path, { method: "POST" }).catch(() => {});
+  $("btnStart").onclick = () => post("/mission/start");
+  $("btnStop").onclick = () => post("/mission/stop");     // never disabled: always works
+  $("btnRec").onclick = () => { $("btnRec").disabled = true; post("/record/start"); };
+  $("btnRecStop").onclick = () => { $("btnRecStop").disabled = true; post("/record/stop"); };
+  // Space bar = STOP as well
+  document.addEventListener("keydown", e => { if (e.code === "Space") { e.preventDefault(); post("/mission/stop"); } });
+</script>
+</body>
+</html>

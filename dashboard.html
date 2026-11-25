@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bob Bottle Detect</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2230;
+    --border: #2a3140;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --red: #f85149;
+    --yellow: #e3b341;
+    --green: #3fb950;
+    --blue: #58a6ff;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
+  body { padding: 20px; }
+
+  header { display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+  header h1 { font-size: 20px; margin: 0; font-weight: 600; letter-spacing: .2px; }
+  header .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .conn { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .dot.live { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .dot.dead { background: var(--red); }
+
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; }
+  @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+
+  .card { background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px; }
+  .card h2 { margin: 0 0 12px; font-size: 12px; text-transform: uppercase;
+    letter-spacing: 1.2px; color: var(--muted); font-weight: 600; }
+
+  /* video */
+  .video-wrap { position: relative; background: #000; border-radius: 10px;
+    overflow: hidden; aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; }
+  .video-wrap img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .video-wrap .placeholder { position: absolute; color: var(--muted); font-size: 14px; }
+  .rec-badge { position: absolute; top: 12px; left: 12px; display: none;
+    align-items: center; gap: 8px; background: rgba(0,0,0,.65); color: #fff;
+    padding: 6px 12px; border-radius: 999px; font-weight: 700; font-size: 14px;
+    font-variant-numeric: tabular-nums; }
+  .rec-badge.on { display: flex; }
+  .rec-badge .rdot { width: 11px; height: 11px; border-radius: 50%; background: var(--red);
+    animation: blink 1s steps(2, start) infinite; }
+  @keyframes blink { to { visibility: hidden; } }
+  .topcut { position: absolute; top: 12px; right: 12px; display: none;
+    background: var(--red); color: #fff; font-weight: 800; padding: 6px 12px;
+    border-radius: 8px; font-size: 14px; letter-spacing: .5px; }
+  .topcut.on { display: block; }
+
+  /* center track under the video */
+  .track { position: relative; height: 26px; margin-top: 14px;
+    background: var(--panel-2); border-radius: 8px; border: 1px solid var(--border); }
+  .track .zone { position: absolute; top: 0; bottom: 0; background: rgba(63,185,80,.18);
+    border-left: 1px dashed var(--green); border-right: 1px dashed var(--green); }
+  .track .mid { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--muted); }
+  .track .marker { position: absolute; top: 3px; bottom: 3px; width: 6px; margin-left: -3px;
+    border-radius: 3px; background: var(--muted); transition: left .15s ease, background .2s; display: none; }
+  .track-labels { display: flex; justify-content: space-between; color: var(--muted);
+    font-size: 11px; margin-top: 6px; }
+
+  /* state badge */
+  .state { border-radius: 12px; padding: 22px 16px; text-align: center; font-weight: 800;
+    font-size: 26px; letter-spacing: .5px; color: #0d1117; background: var(--muted);
+    transition: background .25s; }
+  .state small { display: block; font-size: 13px; font-weight: 600; margin-top: 6px; opacity: .8; }
+  .state.NO_BOTTLE { background: var(--red); color: #fff; }
+  .state.BOTTLE_OFF_CENTER { background: var(--yellow); }
+  .state.CENTERED { background: var(--green); }
+
+  /* metrics */
+  .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .metric { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+  .metric .label { color: var(--muted); font-size: 12px; }
+  .metric .value { font-size: 26px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .metric .unit { font-size: 13px; color: var(--muted); font-weight: 500; margin-left: 3px; }
+  .metric .extra { font-size: 12px; color: var(--muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+  /* recording */
+  .rec-row { display: flex; gap: 10px; }
+  button { flex: 1; border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
+    padding: 12px; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: background .15s, opacity .15s; }
+  button:hover:not(:disabled) { background: #263042; }
+  button:disabled { opacity: .4; cursor: default; }
+  button.start { border-color: rgba(248,81,73,.5); }
+  button.start::before { content: "\25CF  "; color: var(--red); }
+  button.stop::before { content: "\25A0  "; }
+  .rec-info { color: var(--muted); font-size: 13px; margin-top: 10px; min-height: 18px;
+    word-break: break-all; }
+  .rec-info b { color: var(--text); font-weight: 600; }
+
+  .stack { display: flex; flex-direction: column; gap: 18px; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 18px; text-align: center; }
+</style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Bob · Bottle Detect</h1>
+      <div class="sub">YOLOv8s · COCO "bottle" · Bob stays still in this step</div>
+    </div>
+    <div class="conn"><span class="dot" id="connDot"></span><span id="connText">connecting…</span>
+      <span id="fps"></span><span id="mode"></span></div>
+  </header>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Live camera</h2>
+      <div class="video-wrap">
+        <span class="placeholder" id="placeholder">waiting for video…</span>
+        <img id="video" alt="Bob live camera">
+        <div class="rec-badge" id="recBadge"><span class="rdot"></span>REC <span id="recTime">00:00</span></div>
+        <div class="topcut" id="topCut">TOP CUT</div>
+      </div>
+      <div class="track" id="track">
+        <div class="zone" id="zone"></div>
+        <div class="mid"></div>
+        <div class="marker" id="marker"></div>
+      </div>
+      <div class="track-labels"><span>left</span><span>center ±<span id="tolLabel">40</span> px</span><span>right</span></div>
+    </section>
+
+    <div class="stack">
+      <section class="card">
+        <h2>State</h2>
+        <div class="state" id="state">—<small>&nbsp;</small></div>
+      </section>
+
+      <section class="card">
+        <h2>Bottle box</h2>
+        <div class="metrics">
+          <div class="metric"><div class="label">Center X</div>
+            <div class="value"><span id="cx">—</span><span class="unit">px</span></div>
+            <div class="extra" id="offset">&nbsp;</div></div>
+          <div class="metric"><div class="label">Confidence</div>
+            <div class="value" id="conf">—</div><div class="extra">&nbsp;</div></div>
+          <div class="metric"><div class="label">Width</div>
+            <div class="value"><span id="w">—</span><span class="unit">px</span></div></div>
+          <div class="metric"><div class="label">Height</div>
+            <div class="value"><span id="h">—</span><span class="unit">px</span></div></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Recording</h2>
+        <div class="rec-row">
+          <button class="start" id="btnStart">Start</button>
+          <button class="stop" id="btnStop" disabled>Stop</button>
+        </div>
+        <div class="rec-info" id="recInfo">Saved to the <b>recordings</b> folder as MP4.</div>
+      </section>
+    </div>
+  </div>
+
+  <footer>Quit with Ctrl+C in the terminal · LED: red = no bottle, yellow = off center, green = centered</footer>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const LABEL = { NO_BOTTLE: "NO BOTTLE", BOTTLE_OFF_CENTER: "OFF CENTER", CENTERED: "CENTERED" };
+  const HINT  = { NO_BOTTLE: "LED red", BOTTLE_OFF_CENTER: "LED yellow", CENTERED: "LED green" };
+  const COLOR = { NO_BOTTLE: "var(--red)", BOTTLE_OFF_CENTER: "var(--yellow)", CENTERED: "var(--green)" };
+
+  // Live video.
+  // 1) Try the MJPEG stream (/stream) in a plain <img>.
+  // 2) If no frame shows within 2 s (or the stream errors), switch to the
+  //    fallback: reload /frame.jpg every 100 ms. The next frame is requested
+  //    only after the previous one arrived, so slow networks never pile up.
+  const video = $("video");
+  let mode = "stream";            // "stream" or "poll"
+  let fallbackTimer = null;
+
+  function setMode(text) { $("mode").textContent = "· video: " + text; }
+  function gotFrame() { $("placeholder").style.display = "none"; }
+
+  function startStream() {
+    mode = "stream";
+    setMode("MJPEG");
+    video.src = "/stream?t=" + Date.now();
+    // naturalWidth > 0 means at least one frame was decoded and drawn
+    fallbackTimer = setTimeout(() => {
+      if (video.naturalWidth === 0) startPolling("no MJPEG frame in 2 s");
+    }, 2000);
+  }
+
+  function startPolling(reason) {
+    if (mode === "poll") return;
+    clearTimeout(fallbackTimer);
+    console.log("switching to /frame.jpg polling:", reason);
+    mode = "poll";
+    setMode("JPEG polling");
+    video.removeAttribute("src");   // closes the MJPEG connection
+    nextFrame();
+  }
+
+  function nextFrame() { video.src = "/frame.jpg?t=" + Date.now(); }
+
+  video.onload = () => {
+    gotFrame();
+    if (mode === "poll") setTimeout(nextFrame, 100);
+  };
+  video.onerror = () => {
+    if (mode === "stream") startPolling("MJPEG stream error");
+    else setTimeout(nextFrame, 500);   // no frame yet (503) or server busy: retry slower
+  };
+  startStream();
+
+  const fmt = s => { s = Math.floor(s); return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); };
+  const show = v => (v === null || v === undefined) ? "—" : v;
+
+  function render(d) {
+    // connection
+    $("connDot").className = "dot live"; $("connText").textContent = "live";
+    $("fps").textContent = d.fps ? "· " + d.fps + " fps" : "";
+
+    // state badge
+    const st = d.state;
+    const el = $("state");
+    el.className = "state " + (st || "");
+    el.innerHTML = (LABEL[st] || "—") + "<small>" + (HINT[st] || "&nbsp;") + "</small>";
+
+    // numbers
+    $("cx").textContent = show(d.cx);
+    $("w").textContent = show(d.w);
+    $("h").textContent = show(d.h);
+    $("conf").textContent = d.conf == null ? "—" : Math.round(d.conf * 100) + "%";
+    $("offset").textContent = d.offset == null ? " "
+      : (d.offset === 0 ? "on center" : Math.abs(d.offset) + " px " + (d.offset > 0 ? "right" : "left"));
+    $("topCut").classList.toggle("on", !!d.top_cut);
+
+    // center track
+    if (d.frame_w) {
+      const tolPct = d.tolerance / d.frame_w * 100;
+      $("zone").style.left = (50 - tolPct) + "%";
+      $("zone").style.width = (2 * tolPct) + "%";
+      $("tolLabel").textContent = d.tolerance;
+    }
+    const mk = $("marker");
+    if (d.cx != null && d.frame_w) {
+      mk.style.display = "block";
+      mk.style.left = (d.cx / d.frame_w * 100) + "%";
+      mk.style.background = COLOR[st] || "var(--muted)";
+    } else mk.style.display = "none";
+
+    // recording
+    $("recBadge").classList.toggle("on", d.recording);
+    $("recTime").textContent = fmt(d.elapsed || 0);
+    $("btnStart").disabled = d.recording;
+    $("btnStop").disabled = !d.recording;
+    if (d.recording) $("recInfo").innerHTML = "Recording <b>" + d.file + "</b> · " + fmt(d.elapsed);
+    else if (d.last_saved) $("recInfo").innerHTML = "Saved <b>recordings/" + d.last_saved + "</b>";
+  }
+
+  async function poll() {
+    try {
+      const r = await fetch("/status", { cache: "no-store" });
+      render(await r.json());
+    } catch (e) {
+      $("connDot").className = "dot dead"; $("connText").textContent = "disconnected";
+    }
+    setTimeout(poll, 250);
+  }
+  poll();
+
+  async function rec(action) {
+    $("btnStart").disabled = $("btnStop").disabled = true;
+    try { await fetch("/record/" + action, { method: "POST" }); } catch (e) {}
+  }
+  $("btnStart").onclick = () => rec("start");
+  $("btnStop").onclick = () => rec("stop");
+</script>
+</body>
+</html>
